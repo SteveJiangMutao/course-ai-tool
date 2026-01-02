@@ -9,12 +9,12 @@ import time
 # ==========================================
 # 1. 页面配置
 # ==========================================
-st.set_page_config(page_title="AI 课程助手 v6.0", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="AI 课程助手 v7.0", page_icon="🎓", layout="wide")
 
-st.title("🎓 留学课程描述生成 (v6.0 完美合并版)")
-st.sidebar.markdown("### 🚀 版本: v6.0")
+st.title("🎓 留学课程描述生成 (v7.0 强制合并修复版)")
+st.sidebar.markdown("### 🚀 版本: v7.0")
+st.sidebar.markdown("✅ **修复**: 专业列(Program)现在会完美合并")
 st.sidebar.markdown("✅ **模型**: `gemini-3-pro-preview`")
-st.sidebar.markdown("✅ **Excel**: 学校/专业均合并 + 无边框")
 
 # ==========================================
 # 2. 设置与输入
@@ -102,16 +102,15 @@ if st.button("🚀 生成最终 Excel", type="primary"):
     if all_data:
         df = pd.DataFrame(all_data)
 
-        # --- 1. 强制统一数据 (这是合并的关键) ---
+        # --- 1. 强制统一数据 ---
         if not df.empty:
             first = df.iloc[0]
-            # 强制所有行的学校和专业信息完全一致
             df['School_CN'] = first.get('School_CN', user_school)
             df['School_EN'] = first.get('School_EN', user_school)
             df['Program_CN'] = first.get('Program_CN', user_program)
             df['Program_EN'] = first.get('Program_EN', user_program)
 
-        # --- 2. 构造合并列 (换行显示) ---
+        # --- 2. 构造合并列 ---
         df['School_Name'] = df['School_CN'] + '\n' + df['School_EN']
         df['Program_Name'] = df['Program_CN'] + '\n' + df['Program_EN']
 
@@ -122,22 +121,25 @@ if st.button("🚀 生成最终 Excel", type="primary"):
         
         df = df[target_cols]
         
-        # --- 4. 设置多级索引 (School 和 Program 都会被合并) ---
+        # --- 4. 设置多级索引并排序 (关键修复步骤) ---
         df_indexed = df.set_index(['School_Name', 'Program_Name'])
+        
+        # 🚨🚨🚨 关键修复：必须排序索引，Excel 才会合并第二列！ 🚨🚨🚨
+        df_indexed = df_indexed.sort_index()
 
-        st.success("✅ 处理完成！")
+        st.success("✅ 处理完成！(请下载 Excel 查看合并效果，网页预览不显示合并)")
         st.dataframe(df_indexed, use_container_width=True)
 
         # --- 5. 导出 Excel ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            # merge_cells=True 会自动合并索引列 (即 School 和 Program)
+            # merge_cells=True 配合 sort_index() 才能生效
             df_indexed.to_excel(writer, sheet_name='List', merge_cells=True)
             
             wb = writer.book
             ws = writer.sheets['List']
             
-            # 样式 A：索引列 (学校 & 专业) -> 居中 + 垂直居中 + 无边框
+            # 样式：居中 + 垂直居中 + 无边框
             fmt_index = wb.add_format({
                 'valign': 'vcenter', 
                 'align': 'center', 
@@ -145,7 +147,7 @@ if st.button("🚀 生成最终 Excel", type="primary"):
                 'border': 0 
             })
             
-            # 样式 B：内容列 (课程 & 描述) -> 靠上对齐 + 无边框
+            # 样式：靠上 + 无边框
             fmt_content = wb.add_format({
                 'valign': 'top', 
                 'text_wrap': True,
@@ -153,19 +155,14 @@ if st.button("🚀 生成最终 Excel", type="primary"):
             })
             
             # 应用样式
-            # A列(School) 和 B列(Program) 都应用 fmt_index
-            ws.set_column('A:B', 25, fmt_index) 
-            
-            # C列(Course)
+            ws.set_column('A:B', 25, fmt_index)  # 学校和专业列
             ws.set_column('C:C', 30, fmt_content)
-            
-            # D列(Content)
             ws.set_column('D:D', 60, fmt_content)
 
         st.download_button(
-            "📥 下载 Excel (v6.0)", 
+            "📥 下载 Excel (v7.0 修复版)", 
             output.getvalue(), 
-            f"{user_school}_Courses_v6.xlsx", 
+            f"{user_school}_Courses_v7.xlsx", 
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary"
         )
