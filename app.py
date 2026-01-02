@@ -9,12 +9,12 @@ import time
 # ==========================================
 # 1. 页面配置
 # ==========================================
-st.set_page_config(page_title="AI 课程助手 v5.0", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="AI 课程助手 v6.0", page_icon="🎓", layout="wide")
 
-st.title("🎓 留学课程描述生成 (v5.0 旗舰版)")
-st.sidebar.markdown("### 🚀 版本: v5.0")
-st.sidebar.markdown("✅ **模型锁定**: `gemini-3-pro-preview`")
-st.sidebar.markdown("✅ **格式**: 中英合并显示 / 无边框")
+st.title("🎓 留学课程描述生成 (v6.0 完美合并版)")
+st.sidebar.markdown("### 🚀 版本: v6.0")
+st.sidebar.markdown("✅ **模型**: `gemini-3-pro-preview`")
+st.sidebar.markdown("✅ **Excel**: 学校/专业均合并 + 无边框")
 
 # ==========================================
 # 2. 设置与输入
@@ -27,7 +27,7 @@ with st.sidebar:
     else:
         api_key = st.text_input("Gemini API Key", type="password")
     
-    # --- 🔒 核心修改：强制锁定模型，不再提供选择框 ---
+    # 🔒 锁定模型
     model_name = "gemini-3-pro-preview"
 
 col1, col2 = st.columns(2)
@@ -58,7 +58,7 @@ def get_gemini_response(file_obj, mime_type, prompt, api_key, model_name):
     except Exception as e:
         return f"Error: {str(e)}"
 
-if st.button("🚀 生成定制 Excel", type="primary"):
+if st.button("🚀 生成最终 Excel", type="primary"):
     if not uploaded_files or not api_key:
         st.error("❌ 请检查文件或 Key")
         st.stop()
@@ -66,7 +66,6 @@ if st.button("🚀 生成定制 Excel", type="primary"):
     all_data = []
     progress_bar = st.progress(0)
     
-    # --- Prompt: 保持之前的逻辑 ---
     prompt = f"""
     你是一个教务长。请分析图片提取课程，并利用知识库补充大纲。
 
@@ -103,9 +102,10 @@ if st.button("🚀 生成定制 Excel", type="primary"):
     if all_data:
         df = pd.DataFrame(all_data)
 
-        # --- 1. 强制统一数据 (确保合并) ---
+        # --- 1. 强制统一数据 (这是合并的关键) ---
         if not df.empty:
             first = df.iloc[0]
+            # 强制所有行的学校和专业信息完全一致
             df['School_CN'] = first.get('School_CN', user_school)
             df['School_EN'] = first.get('School_EN', user_school)
             df['Program_CN'] = first.get('Program_CN', user_program)
@@ -115,28 +115,29 @@ if st.button("🚀 生成定制 Excel", type="primary"):
         df['School_Name'] = df['School_CN'] + '\n' + df['School_EN']
         df['Program_Name'] = df['Program_CN'] + '\n' + df['Program_EN']
 
-        # --- 3. 筛选列 (只保留中文内容) ---
+        # --- 3. 筛选列 ---
         target_cols = ['School_Name', 'Program_Name', 'Course_Name_EN', 'Course_Content_CN']
         for c in target_cols:
             if c not in df.columns: df[c] = ""
         
         df = df[target_cols]
         
-        # 设置索引
+        # --- 4. 设置多级索引 (School 和 Program 都会被合并) ---
         df_indexed = df.set_index(['School_Name', 'Program_Name'])
 
         st.success("✅ 处理完成！")
         st.dataframe(df_indexed, use_container_width=True)
 
-        # --- 4. 导出无边框 Excel ---
+        # --- 5. 导出 Excel ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            # merge_cells=True 会自动合并索引列 (即 School 和 Program)
             df_indexed.to_excel(writer, sheet_name='List', merge_cells=True)
             
             wb = writer.book
             ws = writer.sheets['List']
             
-            # 样式：无边框 (border:0) + 自动换行 + 垂直居中/顶部对齐
+            # 样式 A：索引列 (学校 & 专业) -> 居中 + 垂直居中 + 无边框
             fmt_index = wb.add_format({
                 'valign': 'vcenter', 
                 'align': 'center', 
@@ -144,21 +145,27 @@ if st.button("🚀 生成定制 Excel", type="primary"):
                 'border': 0 
             })
             
+            # 样式 B：内容列 (课程 & 描述) -> 靠上对齐 + 无边框
             fmt_content = wb.add_format({
                 'valign': 'top', 
                 'text_wrap': True,
                 'border': 0
             })
             
-            # 设置列宽
-            ws.set_column('A:B', 25, fmt_index)  # 学校/专业
-            ws.set_column('C:C', 30, fmt_content) # 课程名
-            ws.set_column('D:D', 60, fmt_content) # 中文内容
+            # 应用样式
+            # A列(School) 和 B列(Program) 都应用 fmt_index
+            ws.set_column('A:B', 25, fmt_index) 
+            
+            # C列(Course)
+            ws.set_column('C:C', 30, fmt_content)
+            
+            # D列(Content)
+            ws.set_column('D:D', 60, fmt_content)
 
         st.download_button(
-            "📥 下载 Excel (v5.0)", 
+            "📥 下载 Excel (v6.0)", 
             output.getvalue(), 
-            f"{user_school}_Courses_v5.xlsx", 
+            f"{user_school}_Courses_v6.xlsx", 
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary"
         )
